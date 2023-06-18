@@ -20,9 +20,10 @@ class TranslateContext:
 
 
 class DocumentPiece:
-    def __init__(self, text, piece_type, metadata=None):
+    def __init__(self, text, piece_type,translate=True, metadata=None):
         self.text = text
         self.type = piece_type
+        self.translate = translate
         self.length = len(text)
         self.metadata = metadata if metadata else {}
 
@@ -109,79 +110,55 @@ class DocumentProcessorFactory:
 
 
 class MarkdownProcessor(DocumentProcessor):
+    def __init__(self, translator: DocumentTranslator, context: TranslateContext):
+        super().__init__(translator, context)
 
     @classmethod
     def get_support_format(cls) -> List[str]:
-        return ['md', 'mdx', 'markdown']
+        return ["md", "markdown"]
 
     def read_document(self, filepath):
-        with open(filepath, 'r', encoding='utf-8') as f:
-            return f.read()
+        with open(filepath, 'r', encoding='utf-8') as file:
+            document = file.readlines()
+        return document
 
-    def split_document(self, document: str, max_length: int) -> List[DocumentPiece]:
-        lines = document.split("\n")
+    def split_document(self, document, max_length):
         pieces = []
-        buffer = ""
         in_code_block = False
-        length = 0
+        for line in document:
+            is_code = line.startswith(('    ', '\t')) or line.strip().startswith('```')
+            if line.strip().startswith('```'):
+                in_code_block = not in_code_block
 
-        for line in lines:
-            stripped = line.strip()
-            if stripped.startswith("```") or stripped.startswith("    "):  # Check for start or end of a code block
-                if in_code_block:  # Code block ends
-                    pieces.append(DocumentPiece(buffer, "code"))
-                    buffer = ""
-                    in_code_block = False
-                else:  # Code block starts
-                    if buffer:  # Add the previous buffered text as a piece
-                        pieces.append(DocumentPiece(buffer, "text"))
-                        buffer = ""
-                    buffer += line  # Don't add newline if buffer is empty
-                    in_code_block = True
-            elif in_code_block:  # Inside a code block
-                buffer += "\n" + line
-            else:  # Normal text
-                temp_len = length + len(line) + 1  # +1 for the newline character
-                if temp_len > max_length:  # current line would exceed the max_length
-                    pieces.append(DocumentPiece(buffer, "text"))
-                    buffer = line  # Don't add newline if buffer is empty
-                    length = len(line)
-                else:
-                    buffer += "\n" + line if buffer else line  # Don't add newline if buffer is empty
-                    length = temp_len
+            if is_code or in_code_block:
+                piece_type = 'code'
+                translate = False
+            else:
+                piece_type = 'text'
+                translate = True
 
-        if buffer:  # Remaining text
-            pieces.append(DocumentPiece(buffer, "text" if not in_code_block else "code"))
-
+            pieces.append(DocumentPiece(line, piece_type, translate))
         return pieces
 
     def translate_pieces(self, pieces):
         translated_pieces = []
         for piece in pieces:
-            if piece.type == "code":  # skip code blocks
-                translated_pieces.append(piece)
+            if piece.translate:
+                translated_text = self.translator.translate(piece.text, self.context.target_lang,"Markdown")
+                translated_pieces.append(DocumentPiece(translated_text, piece.type, piece.translate, piece.metadata))
             else:
-                print("===============================================================")
-                print("start translate piece:\n" + piece.text)
-
-                translated_text = self.translator.translate(
-                    piece.text,
-                    target_language=self.context.target_lang,
-                    document_format="Markdown"
-                )
-                print("translate result:\n" + translated_text)
-
-                translated_pieces.append(DocumentPiece(translated_text, "text"))
+                translated_pieces.append(piece)
         return translated_pieces
 
     def combine_pieces(self, pieces):
+        combined_text = ""
+        for piece in pieces:
+            combined_text += piece.text
+        return combined_text
 
-        return "\n".join((piece.text for piece in pieces))
-
-    def save_document(self, document):
-        with open(self.context.target_path, 'w', encoding='utf-8') as f:
-            f.write(document)
-
+    def save_document(self, translated_document):
+        with open(self.context.target_path, 'w', encoding='utf-8') as file:
+            file.write(translated_document)
 
 class SimpleTextProcessor(DocumentProcessor):
 
@@ -304,4 +281,4 @@ if __name__ == '__main__':
         "tests/sample/markdown/getting_started.md",
         "tests/sample/markdown/getting_started_cn.md",
     )
-    DocumentProcessorFactory.create("markdown", DocumentTranslator(), context).process_document()
+    DocumentProcessorFactory.create("md", DocumentTranslator(), context).process_document()
