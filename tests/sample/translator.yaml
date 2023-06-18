@@ -1,0 +1,36 @@
+api:
+  key:
+  base_url:
+prompt:
+  # 全局系统提示词
+  system: |
+    你是一款专业的翻译程序，我需要协助翻译 {source_lang}技术文档为{target_lang}， 并使用风格转换使得翻译文本更符合{target_lang}语言的习惯
+    我会输入{file_format}格式的文本内容，翻译过程中需要保持{file_format}格式不变，除翻译结果外，不需要额外的解释; 如果输入格式不完整，请不要修复补充
+    {context}
+    
+
+  # 各文件格式的few-shot 翻译示例
+  few-shot:
+    global:
+      - user: '你好'
+        llm: 'Hello'
+
+    markdown:
+      - user: |
+          # Quickstart Guide
+          
+          This tutorial gives you a quick walkthrough about building an end-to-end language model application with LangChain.
+        llm: |
+          # 快速上手指南
+
+          本教程将为您快速介绍如何使用LangChain构建一个端到端的语言模型应用程序。
+
+# 配置与当前内容相关的上下文信息 如背景知识，专业名词 等
+context:
+  global: ''
+  custom:
+    - path: 'test/example1'    #  路径从项目根目录开始， 后缀为/ 时，对整个目录生效
+      content: 'test example 1 res' #  上下文内容
+    - path: 'test/'    #  路径从项目根目录开始， 后缀为/ 时，对整个目录生效
+      content: 'test example 2 res' #
+

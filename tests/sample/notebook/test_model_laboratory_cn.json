@@ -1,0 +1,179 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "id": "2ae34a31",
+   "metadata": {},
+   "source": [
+    "# 模型比较\n",
+    "\n",
+    "构建语言模型应用程序可能涉及在提示、模型甚至链条之间选择许多不同的选项。在这样做时，您希望以一种简单、灵活和直观的方式比较这些不同的选项在不同的输入上的效果。\n",
+    "\n",
+    "LangChain 提供了 ModelLaboratory 的概念，用于测试和尝试不同的模型。"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "id": "d645c060",
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2023-06-17T08:50:44.387438600Z",
+     "start_time": "2023-06-17T08:50:40.637983800Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "from langchain import LLMChain, OpenAI, Cohere, HuggingFaceHub, PromptTemplate\n",
+    "from langchain.model_laboratory import ModelLaboratory"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "id": "8853e00f",
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2023-06-17T08:50:57.630497600Z",
+     "start_time": "2023-06-17T08:50:56.543378900Z"
+    }
+   },
+   "outputs": [
+    {
+     "ename": "ValidationError",
+"evalue": "Cohere验证出现1个错误\n__root__\n未找到cohere_api_key，请添加一个名为`COHERE_API_KEY`的环境变量，并将其包含在其中，或者将`cohere_api_key`作为命名参数传递。（类型=value_error）",
+     "output_type": "错误",
+     "traceback": [
+      "\u001B[1;31m---------------------------------------------------------------------------\u001B[0m",
+      "\u001B[1;31mValidationError\u001B[0m                           Traceback (most recent call last)",
+"Cell In[2], line 3",
+1 llms = [
+2     OpenAI(temperature=0),
+3     Cohere(model=\"command-xlarge-20221108\", max_tokens=20, temperature=0),
+4     HuggingFaceHub(repo_id=\"google/flan-t5-xl\", model_kwargs={\"temperature\":1})
+5 ]"
+      "文件 \u001B[1;32mC:\\ProgramData\\anaconda3\\envs\\3-10\\lib\\site-packages\\pydantic\\main.py:341\u001B[0m, 在 \u001B[0;36mpydantic.main.BaseModel.__init__\u001B[1;34m()\u001B[0m 中\n",
+      "\u001B[1;31mValidationError\u001B[0m: Cohere 的 1 个验证错误\n__root__\n  未找到 cohere_api_key，请添加一个名为 `COHERE_API_KEY` 的环境变量，并将其作为命名参数传递给 `cohere_api_key`。 (type=value_error)"
+     ]
+    }
+   ],
+   "source": [
+    "llms = [\n",
+    "    OpenAI(temperature=0), \n",
+    "    Cohere(model=\"command-xlarge-20221108\", max_tokens=20, temperature=0), \n",
+    "    HuggingFaceHub(repo_id=\"google/flan-t5-xl\", model_kwargs={\"temperature\":1})\n",
+    "]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "4215c689",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "model_lab = ModelLaboratory.from_llms(llms)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "63a66fc1",
+```json
+{
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "model_lab.compare(\"What color is a flamingo?\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "c7adce57",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "prompt = PromptTemplate(template=\"What is the capital of {state}?\", input_variables=[\"state\"])\n",
+    "model_lab_with_prompt = ModelLaboratory.from_llms(llms, prompt=prompt)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+```
+   "id": "847d9cfb",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "model_lab_with_prompt.compare(\"纽约\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "c67a766a",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from langchain import SelfAskWithSearchChain, SerpAPIWrapper\n",
+    "\n",
+    "open_ai_llm = OpenAI(temperature=0)\n",
+    "search = SerpAPIWrapper()\n",
+    "self_ask_with_search_openai = SelfAskWithSearchChain(llm=open_ai_llm, search_chain=search, verbose=True)\n",
+    "\n",
+    "cohere_llm = Cohere(temperature=0, model=\"command-xlarge-20221108\")\n",
+    "search = SerpAPIWrapper()\n",
+    "self_ask_with_search_cohere = SelfAskWithSearchChain(llm=cohere_llm, search_chain=search, verbose=True)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "4b23c3dc",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "chains = [self_ask_with_search_openai, self_ask_with_search_cohere]\n",
+    "names = [str(open_ai_llm), str(cohere_llm)]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "1d76077d",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "model_lab = ModelLaboratory(chains, names=names)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "b943e0fc",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "model_lab.compare(\"现任美国公开赛男子冠军的家乡是哪里？\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "b8ee0637",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "name": "python3",
+   "language": "python",
+   "display_name": "Python 3 (ipykernel)"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
