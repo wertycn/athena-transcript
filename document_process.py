@@ -1,6 +1,7 @@
 import inspect
 import json
 import os
+import shutil
 from abc import ABC, abstractmethod, ABCMeta
 from dataclasses import dataclass
 from datetime import time, datetime
@@ -8,6 +9,7 @@ from pathlib import Path
 from typing import List
 
 import nbformat
+from tqdm import tqdm
 
 from document_translator import DocumentTranslator
 
@@ -58,20 +60,6 @@ class DocumentProcessor(ABC, metaclass=DocumentProcessorMeta):
     def __init__(self, translator: DocumentTranslator, context: TranslateContext):
         self.translator = translator
         self.context = context
-
-    @staticmethod
-    def create(document_format, translator, context):
-        """
-        创建文档处理器实例对象
-        :param document_format:
-        :param translator:
-        :param context:
-        :return:
-        """
-        if document_format in DocumentProcessorMeta.processors:
-            return DocumentProcessorMeta.processors[document_format](translator, context)
-        else:
-            raise ValueError(f'No document processor for format {document_format}')
 
     @abstractmethod
     def read_document(self, filepath):
@@ -127,11 +115,47 @@ class DocumentProcessor(ABC, metaclass=DocumentProcessorMeta):
         self.save_document(translated_document)
 
 
+class DefaultProcessor(DocumentProcessor):
+
+    @classmethod
+    def get_support_format(cls) -> List[str]:
+        """
+        此分片支持的文件格式列表
+        :return:
+        """
+        return []
+    def read_document(self, filepath):
+        pass
+
+    def split_document(self, document, max_length):
+        pass
+
+    def translate_pieces(self, pieces):
+        pass
+
+    def combine_pieces(self, pieces):
+        pass
+
+    def save_document(self, document):
+        # 原地复制
+        shutil.copy(self.context.source_path, self.context.target_path)
+
+
 class DocumentProcessorFactory:
 
     @staticmethod
-    def create(document_format, translator, context) -> DocumentProcessor:
-        return DocumentProcessor.create(document_format, translator, context)
+    def create(document_format: str, translator: DocumentTranslator, context: TranslateContext) -> DocumentProcessor:
+        """
+        创建文档处理器实例对象
+        :param document_format:
+        :param translator:
+        :param context:
+        :return:
+        """
+        if document_format in DocumentProcessorMeta.processors:
+            return DocumentProcessorMeta.processors[document_format](translator, context)
+        else:
+            return DefaultProcessor(translator, context)
 
 
 class MarkdownProcessor(DocumentProcessor):
@@ -198,7 +222,8 @@ class MarkdownProcessor(DocumentProcessor):
     def translate_pieces(self, pieces):
         # Implementation depends on DocumentTranslator, translate the text pieces
         translated_pieces = []
-        for piece in pieces:
+
+        for piece in tqdm(pieces, desc=f"{self.context.source_path} translate processing"):
             if piece.type == 'text':
                 translated_text = self.translator.translate(
                     piece.text, target_language=self.context.target_lang, document_format="Markdown",

@@ -62,7 +62,6 @@ class DocumentTranslator:
         system_message = self.build_system_message(background)
         user_message = self.build_user_message(document_format, target_language, valid_text)
         prompt = [system_message] + self.few_shot_example + [user_message]
-        print(prompt)
         result = self.llm(prompt)
 
         if result.content.strip() == "NOT_FOUNT_CONTENT":
