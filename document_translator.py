@@ -34,20 +34,22 @@ class DocumentTranslator:
         with open(path, 'r', encoding='utf-8') as file:
             return yaml.safe_load(file)
 
-    def translate(self, text, target_language=None, document_format=None, context=None, **kwargs):
-        print("start translate:\n" + text)
+    def translate(self, text, target_language=None, document_format=None, background=None, **kwargs):
         # 如果没有需要翻译的文本，直接返回原文
         if not text.strip():
+            print("input text not exist valid content !")
             return text
 
-        system_message = self.build_system_message(context)
+        system_message = self.build_system_message(background)
         user_message = self.build_user_message(document_format, target_language, text)
         prompt = [system_message] + self.few_shot_example + [user_message]
         print(prompt)
         result = self.llm(prompt)
 
         if result.content.strip() == "NOT_FOUNT_CONTENT":
+            print("input text not found valid content !")
             return text
+
         return result.content
 
     def build_user_message(self, document_format, target_language, text) -> HumanMessage:
@@ -86,6 +88,7 @@ class DocumentTranslator:
             )
             sequence.append(AIMessage(content=example['llm']))
         return sequence
+
 
 
 if __name__ == '__main__':

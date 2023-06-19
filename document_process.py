@@ -1,6 +1,9 @@
 import inspect
+import json
+import os
 from abc import ABC, abstractmethod, ABCMeta
 from dataclasses import dataclass
+from datetime import time, datetime
 from pathlib import Path
 from typing import List
 
@@ -20,12 +23,21 @@ class TranslateContext:
 
 
 class DocumentPiece:
-    def __init__(self, text, piece_type,translate=True, metadata=None):
+    def __init__(self, text, piece_type, translate=True, metadata=None):
         self.text = text
         self.type = piece_type
         self.translate = translate
         self.length = len(text)
         self.metadata = metadata if metadata else {}
+
+    def to_dict(self):
+        return {
+            'text': self.text,
+            'type': self.type,
+            'translate': self.translate,
+            'length': self.length,
+            'metadata': self.metadata
+        }
 
 
 class DocumentProcessorMeta(ABCMeta):
@@ -94,11 +106,24 @@ class DocumentProcessor(ABC, metaclass=DocumentProcessorMeta):
         """
         pass
 
+    def print_pieces(self, pieces):
+        piece_dict_list = [piece.to_dict() for piece in pieces]
+
+        current_time = datetime.now()
+        formatted_time = current_time.strftime("%y%m%d%H%M%S")
+        directory = "./logs"
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        log_file_name = f"{directory}/{formatted_time}_{self.context.target_path.replace('/', '__')}.pieces.log.json"
+        with open(log_file_name, "w", encoding='utf-8') as f:
+            json.dump(piece_dict_list, f)
+
     def process_document(self):
         document = self.read_document(self.context.source_path)
         pieces = self.split_document(document, self.context.max_length)
-        translated_pieces = self.translate_pieces(pieces)
-        translated_document = self.combine_pieces(translated_pieces)
+        self.print_pieces(pieces)
+        # translated_pieces = self.translate_pieces(pieces)
+        translated_document = self.combine_pieces(pieces)
         self.save_document(translated_document)
 
 
@@ -108,57 +133,133 @@ class DocumentProcessorFactory:
     def create(document_format, translator, context) -> DocumentProcessor:
         return DocumentProcessor.create(document_format, translator, context)
 
-
 class MarkdownProcessor(DocumentProcessor):
     def __init__(self, translator: DocumentTranslator, context: TranslateContext):
         super().__init__(translator, context)
+        self.max_length = context.max_length
 
     @classmethod
     def get_support_format(cls) -> List[str]:
         return ["md", "markdown"]
 
-    def read_document(self, filepath):
-        with open(filepath, 'r', encoding='utf-8') as file:
-            document = file.readlines()
+    def read_document(self, filepath: str) -> str:
+        with open(filepath, "r", encoding='utf-8') as file:
+            document = file.read()
         return document
 
-    def split_document(self, document, max_length):
+    def split_document(self, document: str, max_length: int) -> List[DocumentPiece]:
+        lines = document.split('\n')
+
         pieces = []
+        current_piece = []
         in_code_block = False
-        for line in document:
-            is_code = line.startswith(('    ', '\t')) or line.strip().startswith('```')
-            if line.strip().startswith('```'):
+        for line in lines:
+            # Toggle code block state
+            if line.startswith('```'):
+                # If entering a code block, add previous piece as a text
+                if not in_code_block and current_piece:
+                    pieces.append(DocumentPiece('\n'.join(current_piece).strip(), 'text', translate=True))
+                    current_piece = [line]
+                # If exiting a code block, add it as a piece
+                elif in_code_block and current_piece:
+                    current_piece.append(line)
+                    pieces.append(DocumentPiece('\n'.join(current_piece).strip(), 'code', translate=False))
+                    current_piece = []
                 in_code_block = not in_code_block
+                continue
 
-            if is_code or in_code_block:
-                piece_type = 'code'
-                translate = False
+            # If in a code block, just add the line to the current piece
+            if in_code_block:
+                current_piece.append(line)
+                continue
+
+            # If the current piece plus the next line would exceed the max_length,
+            # add the current_piece as a text piece, then start a new piece
+            if len('\n'.join(current_piece + [line])) > max_length:
+                pieces.append(DocumentPiece('\n'.join(current_piece).strip(), 'text', translate=True))
+                current_piece = [line]
             else:
-                piece_type = 'text'
-                translate = True
+                current_piece.append(line)
 
-            pieces.append(DocumentPiece(line, piece_type, translate))
+        # Add the remaining text as a piece
+        if current_piece:
+            pieces.append(DocumentPiece('\n'.join(current_piece).strip(), 'text', translate=True))
+
         return pieces
 
-    def translate_pieces(self, pieces):
-        translated_pieces = []
-        for piece in pieces:
-            if piece.translate:
-                translated_text = self.translator.translate(piece.text, self.context.target_lang,"Markdown")
-                translated_pieces.append(DocumentPiece(translated_text, piece.type, piece.translate, piece.metadata))
+    # Other methods...
+
+DocumentProcessorMeta.processors.update({"md": MarkdownProcessor, "markdown": MarkdownProcessor})
+class MarkdownProcessor(DocumentProcessor):
+    def __init__(self, translator: DocumentTranslator, context: TranslateContext):
+        super().__init__(translator, context)
+        self.max_length = context.max_length
+
+    @classmethod
+    def get_support_format(cls) -> List[str]:
+        return ["md", "markdown"]
+
+    def read_document(self, filepath: str) -> str:
+        with open(filepath, "r", encoding='utf-8') as file:
+            document = file.read()
+        return document
+
+    def split_document(self, document: str, max_length: int) -> List[DocumentPiece]:
+        lines = document.split('\n')
+
+        pieces = []
+        current_piece = []
+        in_code_block = False
+        for line in lines:
+            # Toggle code block state
+            if line.startswith('```'):
+                # If entering a code block, add previous piece as a text
+                if not in_code_block and current_piece:
+                    pieces.append(DocumentPiece('\n'.join(current_piece).strip(), 'text', translate=True))
+                    current_piece = [line]
+                # If exiting a code block, add it as a piece
+                elif in_code_block and current_piece:
+                    current_piece.append(line)
+                    pieces.append(DocumentPiece('\n'.join(current_piece).strip(), 'code', translate=False))
+                    current_piece = []
+                in_code_block = not in_code_block
+                continue
+
+            # If in a code block, just add the line to the current piece
+            if in_code_block:
+                current_piece.append(line)
+                continue
+
+            # If the current piece plus the next line would exceed the max_length,
+            # add the current_piece as a text piece, then start a new piece
+            if len('\n'.join(current_piece + [line])) > max_length:
+                pieces.append(DocumentPiece('\n'.join(current_piece).strip(), 'text', translate=True))
+                current_piece = [line]
             else:
-                translated_pieces.append(piece)
-        return translated_pieces
+                current_piece.append(line)
 
-    def combine_pieces(self, pieces):
-        combined_text = ""
-        for piece in pieces:
-            combined_text += piece.text
-        return combined_text
+        # Add the remaining text as a piece
+        if current_piece:
+            pieces.append(DocumentPiece('\n'.join(current_piece).strip(), 'text', translate=True))
 
-    def save_document(self, translated_document):
+        return pieces
+
+    # Other methods...
+
+
+
+    def translate_pieces(self, pieces):
+        # Implementation depends on DocumentTranslator, translate the text pieces
+        pass
+
+    def combine_pieces(self, pieces) -> str:
+        return "\n".join([piece.text for piece in pieces])
+
+    def save_document(self, document: str):
         with open(self.context.target_path, 'w', encoding='utf-8') as file:
-            file.write(translated_document)
+            file.write(document)
+
+
 
 class SimpleTextProcessor(DocumentProcessor):
 
