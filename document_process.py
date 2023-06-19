@@ -122,8 +122,8 @@ class DocumentProcessor(ABC, metaclass=DocumentProcessorMeta):
         document = self.read_document(self.context.source_path)
         pieces = self.split_document(document, self.context.max_length)
         self.print_pieces(pieces)
-        # translated_pieces = self.translate_pieces(pieces)
-        translated_document = self.combine_pieces(pieces)
+        translated_pieces = self.translate_pieces(pieces)
+        translated_document = self.combine_pieces(translated_pieces)
         self.save_document(translated_document)
 
 
@@ -133,6 +133,7 @@ class DocumentProcessorFactory:
     def create(document_format, translator, context) -> DocumentProcessor:
         return DocumentProcessor.create(document_format, translator, context)
 
+
 class MarkdownProcessor(DocumentProcessor):
     def __init__(self, translator: DocumentTranslator, context: TranslateContext):
         super().__init__(translator, context)
@@ -150,115 +151,71 @@ class MarkdownProcessor(DocumentProcessor):
     def split_document(self, document: str, max_length: int) -> List[DocumentPiece]:
         lines = document.split('\n')
 
+        # Add newline to each line except the last one
+        lines = [line + '\n' for line in lines[:-1]] + lines[-1:]
+
         pieces = []
-        current_piece = []
+        current_piece = ''
         in_code_block = False
-        for line in lines:
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+
             # Toggle code block state
             if line.startswith('```'):
                 # If entering a code block, add previous piece as a text
                 if not in_code_block and current_piece:
-                    pieces.append(DocumentPiece('\n'.join(current_piece).strip(), 'text', translate=True))
-                    current_piece = [line]
+                    pieces.append(DocumentPiece(current_piece, 'text', translate=True))
+                    current_piece = line
                 # If exiting a code block, add it as a piece
                 elif in_code_block and current_piece:
-                    current_piece.append(line)
-                    pieces.append(DocumentPiece('\n'.join(current_piece).strip(), 'code', translate=False))
-                    current_piece = []
+                    current_piece += line
+                    pieces.append(DocumentPiece(current_piece, 'code', translate=False))
+                    current_piece = ''
+                    continue  # prevent incrementing i
                 in_code_block = not in_code_block
-                continue
-
             # If in a code block, just add the line to the current piece
-            if in_code_block:
-                current_piece.append(line)
-                continue
-
+            elif in_code_block:
+                current_piece += line
             # If the current piece plus the next line would exceed the max_length,
             # add the current_piece as a text piece, then start a new piece
-            if len('\n'.join(current_piece + [line])) > max_length:
-                pieces.append(DocumentPiece('\n'.join(current_piece).strip(), 'text', translate=True))
-                current_piece = [line]
             else:
-                current_piece.append(line)
+                next_piece = current_piece + line if current_piece else line
+                if len(next_piece) > max_length:
+                    pieces.append(DocumentPiece(current_piece, 'text', translate=True))
+                    current_piece = line
+                else:
+                    current_piece = next_piece
+            i += 1
 
         # Add the remaining text as a piece
         if current_piece:
-            pieces.append(DocumentPiece('\n'.join(current_piece).strip(), 'text', translate=True))
+            pieces.append(
+                DocumentPiece(current_piece, 'text' if not in_code_block else 'code', translate=not in_code_block))
 
         return pieces
-
-    # Other methods...
-
-DocumentProcessorMeta.processors.update({"md": MarkdownProcessor, "markdown": MarkdownProcessor})
-class MarkdownProcessor(DocumentProcessor):
-    def __init__(self, translator: DocumentTranslator, context: TranslateContext):
-        super().__init__(translator, context)
-        self.max_length = context.max_length
-
-    @classmethod
-    def get_support_format(cls) -> List[str]:
-        return ["md", "markdown"]
-
-    def read_document(self, filepath: str) -> str:
-        with open(filepath, "r", encoding='utf-8') as file:
-            document = file.read()
-        return document
-
-    def split_document(self, document: str, max_length: int) -> List[DocumentPiece]:
-        lines = document.split('\n')
-
-        pieces = []
-        current_piece = []
-        in_code_block = False
-        for line in lines:
-            # Toggle code block state
-            if line.startswith('```'):
-                # If entering a code block, add previous piece as a text
-                if not in_code_block and current_piece:
-                    pieces.append(DocumentPiece('\n'.join(current_piece).strip(), 'text', translate=True))
-                    current_piece = [line]
-                # If exiting a code block, add it as a piece
-                elif in_code_block and current_piece:
-                    current_piece.append(line)
-                    pieces.append(DocumentPiece('\n'.join(current_piece).strip(), 'code', translate=False))
-                    current_piece = []
-                in_code_block = not in_code_block
-                continue
-
-            # If in a code block, just add the line to the current piece
-            if in_code_block:
-                current_piece.append(line)
-                continue
-
-            # If the current piece plus the next line would exceed the max_length,
-            # add the current_piece as a text piece, then start a new piece
-            if len('\n'.join(current_piece + [line])) > max_length:
-                pieces.append(DocumentPiece('\n'.join(current_piece).strip(), 'text', translate=True))
-                current_piece = [line]
-            else:
-                current_piece.append(line)
-
-        # Add the remaining text as a piece
-        if current_piece:
-            pieces.append(DocumentPiece('\n'.join(current_piece).strip(), 'text', translate=True))
-
-        return pieces
-
-    # Other methods...
-
-
 
     def translate_pieces(self, pieces):
         # Implementation depends on DocumentTranslator, translate the text pieces
-        pass
+        translated_pieces = []
+        for piece in pieces:
+            if piece.type == 'text':
+                translated_text = self.translator.translate(
+                    piece.text, target_language=self.context.target_lang, document_format="Markdown",
+                    background=self.context.background
+                )
+                translated_pieces.append(DocumentPiece(translated_text, "text"))
+            else:
+                translated_pieces.append(piece)
+
+        return translated_pieces
 
     def combine_pieces(self, pieces) -> str:
-        return "\n".join([piece.text for piece in pieces])
+        return "".join([piece.text for piece in pieces])
 
     def save_document(self, document: str):
         with open(self.context.target_path, 'w', encoding='utf-8') as file:
             file.write(document)
-
 
 
 class SimpleTextProcessor(DocumentProcessor):

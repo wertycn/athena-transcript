@@ -1,5 +1,6 @@
 import argparse
 import os
+import re
 from typing import List
 
 import yaml
@@ -34,14 +35,32 @@ class DocumentTranslator:
         with open(path, 'r', encoding='utf-8') as file:
             return yaml.safe_load(file)
 
+    @staticmethod
+    def extract_whitespace(text):
+        start_whitespace = ""
+        end_whitespace = ""
+        valid_text = text.strip()
+
+        start_match = re.match(r"^(\s*)", text)
+        if start_match:
+            start_whitespace = start_match.group(1)
+
+        end_match = re.search(r"(\s*)$", text)
+        if end_match:
+            end_whitespace = end_match.group(1)
+
+        return start_whitespace, valid_text, end_whitespace
+
     def translate(self, text, target_language=None, document_format=None, background=None, **kwargs):
         # 如果没有需要翻译的文本，直接返回原文
         if not text.strip():
             print("input text not exist valid content !")
             return text
 
+        # 有效文本前后的空白字符提供，尽可能保留输入内容的格式
+        start, valid_text, end = self.extract_whitespace(text)
         system_message = self.build_system_message(background)
-        user_message = self.build_user_message(document_format, target_language, text)
+        user_message = self.build_user_message(document_format, target_language, valid_text)
         prompt = [system_message] + self.few_shot_example + [user_message]
         print(prompt)
         result = self.llm(prompt)
@@ -50,7 +69,7 @@ class DocumentTranslator:
             print("input text not found valid content !")
             return text
 
-        return result.content
+        return start + result.content + end
 
     def build_user_message(self, document_format, target_language, text) -> HumanMessage:
         return HumanMessage(
@@ -59,8 +78,7 @@ class DocumentTranslator:
 
     def build_system_message(self, background) -> SystemMessage:
         background = self.build_background(background)
-        system_message = SystemMessage(
-            content=(self.config['system'].format(background=background)))
+        system_message = SystemMessage(content=(self.config['system'].format(background=background)))
         return system_message
 
     def build_background(self, background: str) -> str:
@@ -88,7 +106,6 @@ class DocumentTranslator:
             )
             sequence.append(AIMessage(content=example['llm']))
         return sequence
-
 
 
 if __name__ == '__main__':
