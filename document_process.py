@@ -300,7 +300,8 @@ class NotebookProcessor(DocumentProcessor):
 
     @classmethod
     def get_support_format(cls) -> List[str]:
-        return ['ipynb', 'notebook']
+        # 暂不启用
+        return ['ipynbxxx', 'notebookxx']
 
     def read_document(self, filepath):
         with open(filepath, 'r', encoding='utf-8') as f:

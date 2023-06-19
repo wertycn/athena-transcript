@@ -73,6 +73,5 @@ class FilesTranslationManager:
 
 
 if __name__ == '__main__':
-    provider = FileCollector("./")
-    file_list = provider.get_file_list()
-    print(file_list)
+    provider = FileCollector("D:\mycode\langchain")
+    FilesTranslationManager(DocumentTranslator(), provider).process_all("D:\mycode\langchain","D:\mycode\langchain_cn")
