@@ -21,7 +21,7 @@ class TranslateContext:
     source_path: Path
     target_path: Path
     background: str = ""
-    max_length: int = 1000
+    max_length: int = 500
 
 
 class DocumentPiece:
@@ -86,6 +86,14 @@ class DocumentProcessor(ABC, metaclass=DocumentProcessorMeta):
         """
         pass
 
+    def makedir_target_path(self):
+        # 获取目录路径
+        target_dir = os.path.dirname(self.context.target_path)
+
+        # 判断目录是否存在，不存在则创建
+        if not os.path.exists(target_dir):
+            os.makedirs(target_dir, exist_ok=True)
+
     @classmethod
     def get_support_format(cls) -> List[str]:
         """
@@ -102,7 +110,8 @@ class DocumentProcessor(ABC, metaclass=DocumentProcessorMeta):
         directory = "./logs"
         if not os.path.exists(directory):
             os.makedirs(directory)
-        log_file_name = f"{directory}/{formatted_time}_{self.context.target_path.replace('/', '__')}.pieces.log.json"
+        file_name = self.context.target_path.name.replace('/', '__')
+        log_file_name = f"{directory}/{formatted_time}_{file_name}.pieces.log.json"
         with open(log_file_name, "w", encoding='utf-8') as f:
             json.dump(piece_dict_list, f)
 
@@ -112,6 +121,7 @@ class DocumentProcessor(ABC, metaclass=DocumentProcessorMeta):
         self.print_pieces(pieces)
         translated_pieces = self.translate_pieces(pieces)
         translated_document = self.combine_pieces(translated_pieces)
+        self.makedir_target_path()
         self.save_document(translated_document)
 
 
@@ -137,8 +147,12 @@ class DefaultProcessor(DocumentProcessor):
         pass
 
     def save_document(self, document):
+        #
         # 原地复制
         shutil.copy(self.context.source_path, self.context.target_path)
+
+    def print_pieces(self, pieces):
+        pass
 
 
 class DocumentProcessorFactory:
@@ -277,13 +291,13 @@ class SimpleTextProcessor(DocumentProcessor):
     def translate_pieces(self, pieces):
         translated_pieces = []
         for piece in pieces:
-            print("===============================================================")
-            print("start translate piece:\n" + piece.text)
+            # print("===============================================================")
+            # print("start translate piece:\n" + piece.text)
 
             translated_text = self.translator.translate(
                 piece.text
             )
-            print("translate result:\n" + translated_text)
+            # print("translate result:\n" + translated_text)
 
             translated_pieces.append(DocumentPiece(translated_text, "text"))
         return translated_pieces

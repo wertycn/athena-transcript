@@ -58,7 +58,9 @@ class FilesTranslationManager:
                 target_path=Path(target_file),
             )
 
-            DocumentProcessorFactory.create(source_path.suffix, self.translator, context).process_document()
+            suffix = source_path.suffix.lstrip('.')
+
+            DocumentProcessorFactory.create(suffix, self.translator, context).process_document()
 
         # 提交任务给线程池并异步执行
         futures = [pool.submit(process_file, file) for file in file_list]
@@ -73,5 +75,6 @@ class FilesTranslationManager:
 
 
 if __name__ == '__main__':
-    provider = FileCollector("D:\mycode\langchain")
-    FilesTranslationManager(DocumentTranslator(), provider).process_all("D:\mycode\langchain","D:\mycode\langchain_cn")
+    provider = FileCollector("D:/mycode/langchain/")
+    FilesTranslationManager(DocumentTranslator(), provider).process_all("D:\mycode\langchain/","D:\mycode\langchain_cn")
+    # print(Path("./a.py").suffix)
