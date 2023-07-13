@@ -45,7 +45,8 @@ class FilesTranslationManager:
 
     def process_all(self, source_dir, target_dir):
         file_list = self.file_list_provider.get_file_list()
-        pool = ThreadPoolExecutor(max_workers=10)  # 指定线程池中的最大线程数
+        print(file_list)
+        pool = ThreadPoolExecutor(max_workers=5)  # 指定线程池中的最大线程数
 
         def process_file(file):
             relative_path = os.path.relpath(file, source_dir)
@@ -75,6 +76,7 @@ class FilesTranslationManager:
 
 
 if __name__ == '__main__':
-    provider = FileCollector("D:/mycode/langchain/")
-    FilesTranslationManager(DocumentTranslator(), provider).process_all("D:\mycode\langchain/","D:\mycode\langchain_cn")
+    # os.environ['OPENAI_API_BASE'] = 'https://openaiapi.awsv.cn/v1'
+    provider = FileCollector("D:/mycode/documents/streamlit-en/")
+    FilesTranslationManager(DocumentTranslator(), provider).process_all("D:/mycode/documents/streamlit-en/","D:/mycode/documents/streamlit-zh/")
     # print(Path("./a.py").suffix)

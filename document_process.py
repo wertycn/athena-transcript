@@ -10,7 +10,7 @@ from typing import List
 
 import nbformat
 from tqdm import tqdm
-
+import frontmatter
 from document_translator import DocumentTranslator
 
 
@@ -134,6 +134,7 @@ class DefaultProcessor(DocumentProcessor):
         :return:
         """
         return []
+
     def read_document(self, filepath):
         pass
 
@@ -173,18 +174,22 @@ class DocumentProcessorFactory:
 
 
 class MarkdownProcessor(DocumentProcessor):
+    front_matter: frontmatter.Post
+
     def __init__(self, translator: DocumentTranslator, context: TranslateContext):
         super().__init__(translator, context)
         self.max_length = context.max_length
 
     @classmethod
     def get_support_format(cls) -> List[str]:
-        return ["md", "markdown"]
+        return ["md", "markdown", "mdx"]
 
     def read_document(self, filepath: str) -> str:
         with open(filepath, "r", encoding='utf-8') as file:
             document = file.read()
-        return document
+        matter = frontmatter.loads(document)
+        self.front_matter = matter;
+        return matter.content
 
     def split_document(self, document: str, max_length: int) -> List[DocumentPiece]:
         lines = document.split('\n')
@@ -254,14 +259,15 @@ class MarkdownProcessor(DocumentProcessor):
 
     def save_document(self, document: str):
         with open(self.context.target_path, 'w', encoding='utf-8') as file:
-            file.write(document)
+            self.front_matter.content = document
+            file.write(frontmatter.dumps(self.front_matter))
 
 
 class SimpleTextProcessor(DocumentProcessor):
 
     @classmethod
     def get_support_format(cls) -> List[str]:
-        return ['txt', 'text']
+        return []
 
     def read_document(self, filepath):
         with open(filepath, 'r', encoding='utf-8') as f:
@@ -376,7 +382,13 @@ if __name__ == '__main__':
     # 配置日志记录
     context = TranslateContext(
         "English", "Chinese",
-        "tests/sample/markdown/getting_started.md",
-        "tests/sample/markdown/getting_started_cn.md",
+        Path("tests/sample/markdown/frontmatter/yaml.md"),
+        Path("tests/sample/markdown/frontmatter/yaml_cn.md"),
+    )
+    DocumentProcessorFactory.create("md", DocumentTranslator(), context).process_document()
+    context = TranslateContext(
+        "English", "Chinese",
+        Path("tests/sample/markdown/frontmatter/yaml-long-content.md"),
+        Path("tests/sample/markdown/frontmatter/yaml-long-content-cn.md"),
     )
     DocumentProcessorFactory.create("md", DocumentTranslator(), context).process_document()
