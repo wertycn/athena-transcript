@@ -22,7 +22,7 @@ class DocumentTranslator:
     @staticmethod
     def build_model(llm):
         if llm is None:
-            llm = ChatOpenAI(model="gpt-3.5-turbo-16k")
+            llm = ChatOpenAI(model="gpt-3.5-turbo")
 
         return llm
 

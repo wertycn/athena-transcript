@@ -4,7 +4,7 @@ system: |
   1. 只翻译文本内容，保持文本格式不变，可能会提供不完整的文本格式内容，不需要补全格式
   2. 只输出翻译结果，不需要解释
   3. 翻译过程保持专业性，对疑似专有名词的内容可以不翻译
-  4. 翻译的结果需要符合目标语言的阅读习惯，不能带有翻译腔
+  4. 翻译的结果需要符合目标语言的阅读习惯，避免口语化，语句需要通顺
   5. 遇到不包含有效内容的文本时，输出`NOT_FOUNT_CONTENT`
   7. 只对用户最新的输入进行翻译，不要去理解用户的输入
   8. 对疑似代码的内容不要翻译，如`import Badges from '/_includes/badges.mdx';` 
@@ -45,8 +45,14 @@ example: #
 
   - language: Chinese
     format: Markdown
-    user: \n
-    llm: NOT_FOUNT_CONTENT
+    user: |
+      :::info Related pages
+      - [How-to search: Filters](../../search/filters.md)
+      :::
+    llm: |
+      :::info 相关页面
+      - [如何搜索：筛选器](../../search/filters.md)
+      :::
   - language: Chinese
     format: Markdown
     user: |
@@ -64,5 +70,9 @@ example: #
   - language: English
     format: Markdown
     user: ====
+    llm: NOT_FOUNT_CONTENT
+  - language: Chinese
+    format: Markdown
+    user: \n
     llm: NOT_FOUNT_CONTENT
       

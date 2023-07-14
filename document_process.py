@@ -200,21 +200,24 @@ class MarkdownProcessor(DocumentProcessor):
         pieces = []
         current_piece = ''
         in_code_block = False
+        code_block_marker = None
         i = 0
         while i < len(lines):
             line = lines[i]
 
             # Toggle code block state
-            if line.startswith('```'):
+            if line.startswith('```') or line.startswith('~~~') or line.startswith(':::'):
                 # If entering a code block, add previous piece as a text
                 if not in_code_block and current_piece:
                     pieces.append(DocumentPiece(current_piece, 'text', translate=True))
                     current_piece = line
+                    code_block_marker = line[:3]  # just take the first 3 characters
                 # If exiting a code block, add it as a piece
-                elif in_code_block and current_piece:
+                elif in_code_block and current_piece and line.strip().startswith(code_block_marker):
                     current_piece += line
                     pieces.append(DocumentPiece(current_piece, 'code', translate=False))
                     current_piece = ''
+                    code_block_marker = None
                     continue  # prevent incrementing i
                 in_code_block = not in_code_block
             # If in a code block, just add the line to the current piece
