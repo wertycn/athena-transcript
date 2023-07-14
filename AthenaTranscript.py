@@ -67,7 +67,7 @@ class FilesTranslationManager:
         futures = [pool.submit(process_file, file) for file in file_list]
 
         # 使用tqdm创建进度条，并根据任务的完成情况更新进度条
-        with tqdm(total=len(futures), desc="Files Translate Processing") as pbar:
+        with tqdm(total=len(futures),position=0, desc="Files Translate Processing") as pbar:
             for future in as_completed(futures):
                 future.result()
                 pbar.update(1)
@@ -77,6 +77,7 @@ class FilesTranslationManager:
 
 if __name__ == '__main__':
     # os.environ['OPENAI_API_BASE'] = 'https://openaiapi.awsv.cn/v1'
-    provider = FileCollector("D:/mycode/documents/streamlit-en/")
-    FilesTranslationManager(DocumentTranslator(), provider).process_all("D:/mycode/documents/streamlit-en/","D:/mycode/documents/streamlit-zh/")
+    # TODO : 执行前先文件数量及翻译所需token进行一次评估 ，预估本次翻译所需成本
+    provider = FileCollector("D:/mycode/documents/weaviate/api/graphql")
+    FilesTranslationManager(DocumentTranslator(), provider).process_all("D:/mycode/documents/weaviate/api/graphql/","D:/mycode/documents/weaviate/api/graphql-zh/")
     # print(Path("./a.py").suffix)
