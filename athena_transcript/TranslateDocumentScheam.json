@@ -1,0 +1,35 @@
+{
+  "process_name": "处理器名称",
+  "version": "文件版本",
+  "file_metadata": {
+    "path": "文件绝对路径",
+    "format": "文件格式",
+    "name": "文件名",
+    "extensions": "文件后缀",
+    "version": "",
+    "last_change_time": "文件最新修改时间"
+  },
+  "翻译相关信息在翻译文档对象中不进行存储": "",
+  "pieces": [
+    {
+        "type": "code",
+        "format": "markdown",
+        "translate": true,
+        "length": 498,
+        "source_content": ":::tip Looking for Weaviate Cloud Services docs?\nThe Weaviate Cloud Services (WCS) documentation now has its own section! [Check it out here](../wcs/index.mdx).\n:::\n",
+        "replace_content": ":::tip <_%%0%%_>_\n<_%%1%%_>\n:::\n",
+        "translate_content": [
+          "Looking for Weaviate Cloud Services docs?",
+          "The Weaviate Cloud Services (WCS) documentation now has its own section! [Check it out here](../wcs/index.mdx)."
+        ],
+        "metadata": {
+          "code_block_mark": ":::",
+          "code_block_title": "tip"
+        },
+        "hash": "md5(source_content)"
+    }
+
+  ]
+
+
+}

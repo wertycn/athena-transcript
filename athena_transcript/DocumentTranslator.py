@@ -30,7 +30,7 @@ class DocumentTranslator:
     def load_config(path):
         if path is None:
             dir_path = os.path.abspath(os.path.dirname(__file__))
-            path = os.path.join(dir_path, 'prompt.yaml')
+            path = os.path.join(dir_path, '../prompt.yaml')
 
         with open(path, 'r', encoding='utf-8') as file:
             return yaml.safe_load(file)

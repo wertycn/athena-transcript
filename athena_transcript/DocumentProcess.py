@@ -1,45 +1,19 @@
 import inspect
 import json
 import os
+import re
 import shutil
 from abc import ABC, abstractmethod, ABCMeta
-from dataclasses import dataclass
-from datetime import time, datetime
+from datetime import datetime
 from pathlib import Path
 from typing import List
 
+import frontmatter
 import nbformat
 from tqdm import tqdm
-import frontmatter
-from document_translator import DocumentTranslator
 
-
-@dataclass
-class TranslateContext:
-    source_lang: str
-    target_lang: str
-    source_path: Path
-    target_path: Path
-    background: str = ""
-    max_length: int = 500
-
-
-class DocumentPiece:
-    def __init__(self, text, piece_type, translate=True, metadata=None):
-        self.text = text
-        self.type = piece_type
-        self.translate = translate
-        self.length = len(text)
-        self.metadata = metadata if metadata else {}
-
-    def to_dict(self):
-        return {
-            'text': self.text,
-            'type': self.type,
-            'translate': self.translate,
-            'length': self.length,
-            'metadata': self.metadata
-        }
+from DocumentTranslator import DocumentTranslator
+from athena_transcript.scheam import TranslateContext, DocumentPiece, TranscriptDocument
 
 
 class DocumentProcessorMeta(ABCMeta):
@@ -57,9 +31,12 @@ class DocumentProcessorMeta(ABCMeta):
 
 class DocumentProcessor(ABC, metaclass=DocumentProcessorMeta):
 
-    def __init__(self, translator: DocumentTranslator, context: TranslateContext):
+    def __init__(self, translator: DocumentTranslator, context: TranslateContext, file_path: Path = None):
         self.translator = translator
         self.context = context
+        self.file_path = file_path
+        if file_path is None:
+            self.file_path = context.source_path
 
     @abstractmethod
     def read_document(self, filepath):
@@ -72,6 +49,8 @@ class DocumentProcessor(ABC, metaclass=DocumentProcessorMeta):
     @abstractmethod
     def translate_pieces(self, pieces):
         pass
+
+    # def translate
 
     @abstractmethod
     def combine_pieces(self, pieces):
@@ -101,6 +80,27 @@ class DocumentProcessor(ABC, metaclass=DocumentProcessorMeta):
         :return:
         """
         pass
+
+    def to_translate_document(self) -> TranscriptDocument:
+        pieces = self.split_document(self.read_document(self.file_path), self.max_length)
+
+        extension = os.path.splitext(self.file_path)[1].lstrip('.')
+        file_metadata = {
+            "path": self.file_path,
+            "format": extension,
+            "name": os.path.basename(self.file_path),
+            "extensions": extension,
+            "last_change_time": datetime.fromtimestamp(os.path.getmtime(self.file_path)).isoformat()
+        }
+
+        translate_document = TranscriptDocument(
+            process_name=type(self).__name__,
+            version="1.0",
+            file_metadata=file_metadata,
+            pieces=[piece.to_dict() for piece in pieces]
+        )
+
+        return translate_document
 
     def print_pieces(self, pieces):
         piece_dict_list = [piece.to_dict() for piece in pieces]
@@ -172,17 +172,41 @@ class DocumentProcessorFactory:
         else:
             return DefaultProcessor(translator, context)
 
-
 class MarkdownProcessor(DocumentProcessor):
+    """
+    markdown 文档处理器
+    """
+    # TODO: frontmatter 作为一个分片添加到分片结果中去
     front_matter: frontmatter.Post
 
-    def __init__(self, translator: DocumentTranslator, context: TranslateContext):
-        super().__init__(translator, context)
-        self.max_length = context.max_length
+    def __init__(self, translator: DocumentTranslator, context: TranslateContext, file_path=None):
+        super().__init__(translator, context, file_path)
+        self.max_length = 500
 
     @classmethod
     def get_support_format(cls) -> List[str]:
         return ["md", "markdown", "mdx"]
+
+    @classmethod
+    def create_document_piece(cls, content, piece_type='text', translate=True, code_block_marker=None, **kwargs):
+        if piece_type == 'code' and code_block_marker == ':::':
+            # 提取代码块标题和内容
+            code_block_title, content_piece = re.findall(r':::(\w+)?\s*(.*?)(?=\n:::)', content, re.DOTALL)[0]
+            content_piece = content_piece.strip()
+
+            # 构建替换内容
+            replace_content = f":::<_%%0%%_>\n<_%%1%%_>\n:::\n"
+
+            # 构建元数据
+            metadata = {
+                'code_block_mark': ':::',
+                'code_block_title': code_block_title
+            }
+
+            return DocumentPiece(content, replace_content, [code_block_title, content_piece], piece_type,
+                                 translate=True, metadata=metadata)
+
+        return DocumentPiece(content, piece_type, translate=translate)
 
     def read_document(self, filepath: str) -> str:
         with open(filepath, "r", encoding='utf-8') as file:
@@ -209,13 +233,14 @@ class MarkdownProcessor(DocumentProcessor):
             if line.startswith('```') or line.startswith('~~~') or line.startswith(':::'):
                 # If entering a code block, add previous piece as a text
                 if not in_code_block and current_piece:
-                    pieces.append(DocumentPiece(current_piece, 'text', translate=True))
+                    pieces.append(self.create_document_piece(current_piece))
                     current_piece = line
                     code_block_marker = line[:3]  # just take the first 3 characters
                 # If exiting a code block, add it as a piece
                 elif in_code_block and current_piece and line.strip().startswith(code_block_marker):
                     current_piece += line
-                    pieces.append(DocumentPiece(current_piece, 'code', translate=False))
+                    pieces.append(self.create_document_piece(current_piece, 'code', translate=False,
+                                                             code_block_marker=code_block_marker))
                     current_piece = ''
                     code_block_marker = None
                     continue  # prevent incrementing i
@@ -227,17 +252,22 @@ class MarkdownProcessor(DocumentProcessor):
             # add the current_piece as a text piece, then start a new piece
             else:
                 next_piece = current_piece + line if current_piece else line
-                if len(next_piece) > max_length:
-                    pieces.append(DocumentPiece(current_piece, 'text', translate=True))
-                    current_piece = line
-                else:
-                    current_piece = next_piece
+                # if len(next_piece) > max_length:
+                #     pieces.append(DocumentPiece(current_piece, 'text', translate=True))
+                #     current_piece = line
+                # else:
+                current_piece = next_piece
             i += 1
 
         # Add the remaining text as a piece
         if current_piece:
             pieces.append(
                 DocumentPiece(current_piece, 'text' if not in_code_block else 'code', translate=not in_code_block))
+
+        #  处理文本分片内可能存在JSX 相关标记, 重新分片
+        pieces = self.do_mdx(pieces)
+        #  基于分片长度， 重新分片
+        pieces = self.do_pieces_length(pieces)
 
         return pieces
 
@@ -265,6 +295,19 @@ class MarkdownProcessor(DocumentProcessor):
             self.front_matter.content = document
             file.write(frontmatter.dumps(self.front_matter))
 
+    @classmethod
+    def do_mdx(cls, pieces: List[DocumentPiece]):
+        result = []
+        for piece in pieces:
+            if piece.type == 'text':
+                result.append(None)
+            else:
+                result.append(piece)
+        return pieces
+
+    @classmethod
+    def do_pieces_length(cls, pieces):
+        return pieces
 
 class SimpleTextProcessor(DocumentProcessor):
 
@@ -385,13 +428,16 @@ if __name__ == '__main__':
     # 配置日志记录
     context = TranslateContext(
         "English", "Chinese",
-        Path("tests/sample/markdown/frontmatter/yaml.md"),
-        Path("tests/sample/markdown/frontmatter/yaml_cn.md"),
+        Path("../tests/sample/markdown/frontmatter/yaml.md"),
+        Path("../tests/sample/markdown/frontmatter/yaml_cn.md"),
     )
-    DocumentProcessorFactory.create("md", DocumentTranslator(), context).process_document()
-    context = TranslateContext(
-        "English", "Chinese",
-        Path("tests/sample/markdown/frontmatter/yaml-long-content.md"),
-        Path("tests/sample/markdown/frontmatter/yaml-long-content-cn.md"),
-    )
-    DocumentProcessorFactory.create("md", DocumentTranslator(), context).process_document()
+    processor = MarkdownProcessor(None, None, "../tests/sample/markdown/mdx/index.md")
+    document = processor.to_translate_document()
+    print(document.to_dict())
+    # DocumentProcessorFactory.create("md", DocumentTranslator(), context).process_document()
+    # context = TranslateContext(
+    #     "English", "Chinese",
+    #     Path("../tests/sample/markdown/frontmatter/yaml-long-content.md"),
+    #     Path("../tests/sample/markdown/frontmatter/yaml-long-content-cn.md"),
+    # )
+    # DocumentProcessorFactory.create("md", DocumentTranslator(), context).process_document()

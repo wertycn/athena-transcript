@@ -7,8 +7,24 @@ from typing import List
 
 from tqdm import tqdm
 
-from document_process import TranslateContext, DocumentProcessorFactory
-from document_translator import DocumentTranslator
+from athena_transcript.DocumentProcess import DocumentProcessorFactory
+from athena_transcript.scheam import TranslateContext
+from DocumentTranslator import DocumentTranslator
+
+
+class TranslateProcess:
+    """
+    翻译进程
+    1. 对文件选择合适的分片器，并对分片进行翻译
+    2. 基于本次翻译的特性，选择决定对哪些分片进行翻译，实现增量翻译
+    3. 负责分片结果及翻译结果记录，实现断点续翻
+    4. 翻译过程记录到对应存储(json 文件或sqlite)
+
+
+
+    """
+    def process(self):
+        pass
 
 
 class FileListProvider(abc.ABC):
@@ -48,6 +64,7 @@ class FilesTranslationManager:
         print(file_list)
         # 需要考虑代理的请求容量
         pool = ThreadPoolExecutor(max_workers=10)  # 指定线程池中的最大线程数
+
 
         def process_file(file):
             relative_path = os.path.relpath(file, source_dir)
