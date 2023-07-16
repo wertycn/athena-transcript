@@ -99,7 +99,7 @@ class TranscriptDocument:
             'process_name': self.process_name,
             'version': self.version,
             'file_metadata': self.file_metadata,
-            'pieces': self.pieces
+            'pieces': [piece.to_dict() for piece in self.pieces]
         }
 
     @classmethod

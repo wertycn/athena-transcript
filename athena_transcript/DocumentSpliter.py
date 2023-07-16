@@ -16,8 +16,9 @@ from DocumentTranslator import DocumentTranslator
 from athena_transcript.scheam import TranslateContext, DocumentPiece, TranscriptDocument
 
 
-class DocumentProcessorMeta(ABCMeta):
+class DocumentSpliterMeta(ABCMeta):
     processors = {}
+    format_list = []
 
     def __init__(cls, name, bases, attrs):
         super().__init__(name, bases, attrs)
@@ -26,24 +27,22 @@ class DocumentProcessorMeta(ABCMeta):
             if not hasattr(cls, 'get_support_format'):
                 raise NotImplementedError(f"Class {name} does not implement 'get_support_format' method.")
             support_format = cls.get_support_format()
-            DocumentProcessorMeta.processors.update({format: cls for format in support_format})
+            DocumentSpliterMeta.format_list.extend(support_format)
+            DocumentSpliterMeta.processors.update({format: cls for format in support_format})
 
 
-class DocumentProcessor(ABC, metaclass=DocumentProcessorMeta):
+class DocumentSpliter(ABC, metaclass=DocumentSpliterMeta):
 
-    def __init__(self, translator: DocumentTranslator, context: TranslateContext, file_path: Path = None):
-        self.translator = translator
-        self.context = context
+    def __init__(self, file_path: Path = None, max_length: int = 500):
         self.file_path = file_path
-        if file_path is None:
-            self.file_path = context.source_path
+        self.max_length = max_length
 
     @abstractmethod
     def read_document(self, filepath):
         pass
 
     @abstractmethod
-    def split_document(self, document, max_length):
+    def split_document(self, content, max_length):
         pass
 
     @abstractmethod
@@ -65,13 +64,13 @@ class DocumentProcessor(ABC, metaclass=DocumentProcessorMeta):
         """
         pass
 
-    def makedir_target_path(self):
-        # 获取目录路径
-        target_dir = os.path.dirname(self.context.target_path)
-
-        # 判断目录是否存在，不存在则创建
-        if not os.path.exists(target_dir):
-            os.makedirs(target_dir, exist_ok=True)
+    # def makedir_target_path(self):
+    #     # 获取目录路径
+    #     target_dir = os.path.dirname(self.context.target_path)
+    #
+    #     # 判断目录是否存在，不存在则创建
+    #     if not os.path.exists(target_dir):
+    #         os.makedirs(target_dir, exist_ok=True)
 
     @classmethod
     def get_support_format(cls) -> List[str]:
@@ -97,7 +96,7 @@ class DocumentProcessor(ABC, metaclass=DocumentProcessorMeta):
             process_name=type(self).__name__,
             version="1.0",
             file_metadata=file_metadata,
-            pieces=[piece.to_dict() for piece in pieces]
+            pieces=pieces
         )
 
         return translate_document
@@ -118,14 +117,14 @@ class DocumentProcessor(ABC, metaclass=DocumentProcessorMeta):
     def process_document(self):
         document = self.read_document(self.context.source_path)
         pieces = self.split_document(document, self.context.max_length)
-        self.print_pieces(pieces)
+        # self.print_pieces(pieces)
         translated_pieces = self.translate_pieces(pieces)
         translated_document = self.combine_pieces(translated_pieces)
         self.makedir_target_path()
         self.save_document(translated_document)
 
 
-class DefaultProcessor(DocumentProcessor):
+class DefaultSpliter(DocumentSpliter):
 
     @classmethod
     def get_support_format(cls) -> List[str]:
@@ -138,7 +137,7 @@ class DefaultProcessor(DocumentProcessor):
     def read_document(self, filepath):
         pass
 
-    def split_document(self, document, max_length):
+    def split_document(self, content, max_length):
         pass
 
     def translate_pieces(self, pieces):
@@ -156,10 +155,10 @@ class DefaultProcessor(DocumentProcessor):
         pass
 
 
-class DocumentProcessorFactory:
+class DocumentSpliterFactory:
 
     @staticmethod
-    def create(document_format: str, translator: DocumentTranslator, context: TranslateContext) -> DocumentProcessor:
+    def create(document_format: str, translator: DocumentTranslator, context: TranslateContext) -> DocumentSpliter:
         """
         创建文档处理器实例对象
         :param document_format:
@@ -167,21 +166,22 @@ class DocumentProcessorFactory:
         :param context:
         :return:
         """
-        if document_format in DocumentProcessorMeta.processors:
-            return DocumentProcessorMeta.processors[document_format](translator, context)
+        if document_format in DocumentSpliterMeta.processors:
+            return DocumentSpliterMeta.processors[document_format](translator, context)
         else:
-            return DefaultProcessor(translator, context)
+            return DefaultSpliter()
 
-class MarkdownProcessor(DocumentProcessor):
+    @staticmethod
+    def get_support_format():
+        return list(set(DocumentSpliterMeta.format_list))
+
+
+class MarkdownSpliter(DocumentSpliter):
     """
     markdown 文档处理器
     """
     # TODO: frontmatter 作为一个分片添加到分片结果中去
     front_matter: frontmatter.Post
-
-    def __init__(self, translator: DocumentTranslator, context: TranslateContext, file_path=None):
-        super().__init__(translator, context, file_path)
-        self.max_length = 500
 
     @classmethod
     def get_support_format(cls) -> List[str]:
@@ -215,8 +215,8 @@ class MarkdownProcessor(DocumentProcessor):
         self.front_matter = matter;
         return matter.content
 
-    def split_document(self, document: str, max_length: int) -> List[DocumentPiece]:
-        lines = document.split('\n')
+    def split_document(self, content: str, max_length: int) -> List[DocumentPiece]:
+        lines = content.split('\n')
 
         # Add newline to each line except the last one
         lines = [line + '\n' for line in lines[:-1]] + lines[-1:]
@@ -309,7 +309,8 @@ class MarkdownProcessor(DocumentProcessor):
     def do_pieces_length(cls, pieces):
         return pieces
 
-class SimpleTextProcessor(DocumentProcessor):
+
+class SimpleTextSpliter(DocumentSpliter):
 
     @classmethod
     def get_support_format(cls) -> List[str]:
@@ -319,8 +320,8 @@ class SimpleTextProcessor(DocumentProcessor):
         with open(filepath, 'r', encoding='utf-8') as f:
             return f.read()
 
-    def split_document(self, document: str, max_length: int) -> List[DocumentPiece]:
-        lines = document.split("\n")
+    def split_document(self, content: str, max_length: int) -> List[DocumentPiece]:
+        lines = content.split("\n")
         pieces = []
         buffer = ""
         length = 0
@@ -362,7 +363,7 @@ class SimpleTextProcessor(DocumentProcessor):
             f.write(document)
 
 
-class NotebookProcessor(DocumentProcessor):
+class NotebookSpliter(DocumentSpliter):
 
     @classmethod
     def get_support_format(cls) -> List[str]:
@@ -373,8 +374,8 @@ class NotebookProcessor(DocumentProcessor):
         with open(filepath, 'r', encoding='utf-8') as f:
             return f.read()
 
-    def split_document(self, document: str, max_length: int) -> List[DocumentPiece]:
-        notebook = nbformat.reads(document, as_version=4)
+    def split_document(self, content: str, max_length: int) -> List[DocumentPiece]:
+        notebook = nbformat.reads(content, as_version=4)
         pieces = []
 
         for cell in notebook.cells:
@@ -389,7 +390,7 @@ class NotebookProcessor(DocumentProcessor):
 
     def _split_markdown_cell(self, cell, max_length):
         # Reuse the MarkdownProcessor's logic to split Markdown text
-        markdown_processor = MarkdownProcessor(self.translator, self.context)
+        markdown_processor = MarkdownSpliter(self.translator, self.context)
         return markdown_processor.split_document(cell.source, max_length)
 
     def translate_pieces(self, pieces):
@@ -431,8 +432,9 @@ if __name__ == '__main__':
         Path("../tests/sample/markdown/frontmatter/yaml.md"),
         Path("../tests/sample/markdown/frontmatter/yaml_cn.md"),
     )
-    processor = MarkdownProcessor(None, None, "../tests/sample/markdown/mdx/index.md")
+    processor = MarkdownSpliter("../tests/sample/markdown/mdx/index.md")
     document = processor.to_translate_document()
+
     print(document.to_dict())
     # DocumentProcessorFactory.create("md", DocumentTranslator(), context).process_document()
     # context = TranslateContext(

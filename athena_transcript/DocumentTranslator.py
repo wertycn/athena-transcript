@@ -22,7 +22,8 @@ class DocumentTranslator:
     @staticmethod
     def build_model(llm):
         if llm is None:
-            llm = ChatOpenAI(model="gpt-3.5-turbo")
+            model = os.getenv("OPENAI_API_MODEL", "gpt-3.5-turbo")
+            llm = ChatOpenAI(model=model)
 
         return llm
 
