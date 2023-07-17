@@ -15,6 +15,9 @@ from typing import List
 
 import pathspec
 
+from athena_transcript.DocumentSpliter import DocumentSpliterFactory
+from athena_transcript.scheam import TranscriptDocument
+
 
 class FileListProvider(abc.ABC):
     """
@@ -47,11 +50,52 @@ class NormalFileCollector(FileListProvider):
         return self.file_list
 
 
+class AthenaTranscriptWorkspace:
+    workspace_dir = '.athena_transcript'
+
+    def __init__(self, initial_dir: Path):
+        self.initial_dir = os.path.abspath(initial_dir)
+        self.workspace = self.find_or_create_workspace()
+
+    def find_or_create_workspace(self):
+        current_dir = self.initial_dir
+
+        # Check if workspace exists in the initial directory or its parents
+        while True:
+            workspace_path = os.path.join(current_dir, self.workspace_dir)
+            if os.path.exists(workspace_path):
+                return workspace_path
+            else:
+                parent_dir = os.path.dirname(current_dir)
+                if parent_dir == current_dir:  # We've reached the root directory
+                    break
+                else:
+                    current_dir = parent_dir
+
+        # If workspace doesn't exist, create it in the initial directory
+        workspace_path = os.path.join(self.initial_dir, self.workspace_dir)
+        os.makedirs(workspace_path, exist_ok=True)
+        #  创建工作空间的子目录
+        return workspace_path
+
+    def get_workspace(self):
+        return self.workspace
+
+    def is_exist_transcript_record(self, hash: str) -> bool:
+        return False
+
+    def get_transcript_record(self, priece_hash: str) -> str:
+        # 获取分片翻译记录
+        pass
+
+
 class AthenaTranscript:
 
     def __init__(self, source_path: Path, target_path: Path,
                  target_lange: str = "English", source_lange: str = "Chinese",
                  excludes: str = None):
+
+        self.workspace = AthenaTranscriptWorkspace(source_path)
         self.source_path = source_path
         self.target_lange = target_lange
         self.source_lange = source_lange
@@ -60,10 +104,30 @@ class AthenaTranscript:
         self.excludes = excludes
         # 获取所有文件列表
         self.document_file_list = NormalFileCollector(source_path, excludes.split(",")).get_file_list()
+        # 获取需要翻译的文件列表
+        self.translate_file_list, self.copy_list = self.filter_translate_file_list()
+
+    def 计算翻译成本(self):
+        """
+        基于遍历需要翻译的文件列表，转换为TranscriptDocument对象，调用Translator.计算成本 方法 来完成计算
+        :return:
+        """
+        pass
+
+    def estimate_cost(self):
+        # TODO: 调用分片处理函数，得到需要翻译的分片列表，再转换为分片实际翻译的文档 预处理对象
+        pass
+
+    def estimate_sign_document_cost(self, document: TranscriptDocument):
+        """
+        计算单个文档的成本
+        :return:
+        """
+        document.get_pieces()
+        pass
 
     def translate(self):
-        # 获取需要翻译的文件列表
-
+        translate_list, copy_list = self.filter_translate_file_list()
         # 文件转换为TranscriptDocument 对象并存储
 
         # 计算本次翻译所需成本(如果有分片有翻译记录且无变化，不计算成本)
@@ -76,3 +140,25 @@ class AthenaTranscript:
 
     def __call__(self, *args, **kwargs):
         pass
+
+    import os
+
+    def filter_translate_file_list(self):
+        """
+        :return: a tuple of two lists, the first contains files that can be translated,
+                 the second contains files that cannot be translated.
+        """
+        support_format = DocumentSpliterFactory.get_support_format()
+        translate_list = []
+        copy_list = []
+
+        for file in self.document_file_list:
+            _, ext = os.path.splitext(file)
+            if ext == '':
+                copy_list.append(file)
+            elif ext[1:] in support_format:  # remove the dot from the extension
+                translate_list.append(file)
+            else:
+                copy_list.append(file)
+
+        return translate_list, copy_list

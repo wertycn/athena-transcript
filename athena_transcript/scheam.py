@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import List
 
 
-
 @dataclass
 class TranslateContext:
     source_lang: str
@@ -88,7 +87,7 @@ class TranscriptDocument:
     file_metadata: dict
     pieces: List[DocumentPiece]
 
-    def __init__(self, process_name: str,  file_metadata: dict, pieces: List[DocumentPiece],version: str = "v1.0"):
+    def __init__(self, process_name: str, file_metadata: dict, pieces: List[DocumentPiece], version: str = "v1.0"):
         self.process_name = process_name
         self.version = version
         self.file_metadata = file_metadata
@@ -114,4 +113,8 @@ class TranscriptDocument:
         pieces_data = data.pop('pieces')
         pieces = [DocumentPiece(**piece) for piece in pieces_data]
         return cls(pieces=pieces, **data)
+
+    def get_pieces(self):
+        return self.pieces
+
 

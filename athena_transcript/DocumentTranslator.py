@@ -8,6 +8,8 @@ from langchain.chat_models import ChatOpenAI
 from langchain.chat_models.base import BaseChatModel
 from langchain.schema import SystemMessage, HumanMessage, AIMessage, BaseMessage
 
+from athena_transcript.scheam import TranscriptDocument
+
 
 class DocumentTranslator:
     few_shot_example: list[BaseMessage]
@@ -70,6 +72,22 @@ class DocumentTranslator:
             return text
 
         return start + result.content + end
+
+    def estimate_cost(self, document: TranscriptDocument, target_language=None, background=None, **kwargs):
+        """
+        预测翻译成本
+        :param document:  待翻译的文档对象
+        :param target_language: 目标语言
+        :param background: 上下文背景知识
+        :param kwargs: 其他关键参数
+        :return:
+        """
+        # TODO: 调用分片处理函数，得到需要翻译的分片列表，再转换为分片实际翻译的文档 预处理对象
+
+        pass
+
+
+
 
     def build_user_message(self, document_format, target_language, text) -> HumanMessage:
         return HumanMessage(
