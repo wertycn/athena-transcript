@@ -84,8 +84,10 @@ class AthenaTranscriptWorkspace:
     def is_exist_transcript_record(self, hash: str) -> bool:
         return False
 
-    def get_transcript_record(self, priece_hash: str) -> str:
+    def get_transcript_record(self, piece_hash: str) -> str:
         # 获取分片翻译记录
+
+        # 使用分片hash存储到工作区内， 从工作区中进行获取，分片基于前进行存储分片
         pass
 
 
