@@ -14,12 +14,14 @@ from athena_transcript.scheam import TranscriptDocument
 class DocumentTranslator:
     few_shot_example: list[BaseMessage]
 
+    separator = "[*-*-*-*]"
+
     def __init__(self, llm: BaseChatModel = None, config_path: str = None):
         self.llm = self.build_model(llm)
         self.config = self.load_config(config_path)
         self.default_language = "Chinese"
         self.default_format = "Markdown"
-        self.few_shot_example = self.build_chat_sequence();
+        self.few_shot_example = self.build_chat_sequence()
 
     @staticmethod
     def build_model(llm):
@@ -61,10 +63,7 @@ class DocumentTranslator:
             return text
 
         # 有效文本前后的空白字符提供，尽可能保留输入内容的格式
-        start, valid_text, end = self.extract_whitespace(text)
-        system_message = self.build_system_message(background)
-        user_message = self.build_user_message(document_format, target_language, valid_text)
-        prompt = [system_message] + self.few_shot_example + [user_message]
+        prompt, start, end = self.build_prompt(background, document_format, target_language, text)
         result = self.llm(prompt)
 
         if result.content.strip() == "NOT_FOUNT_CONTENT":
@@ -73,7 +72,14 @@ class DocumentTranslator:
 
         return start + result.content + end
 
-    def estimate_cost(self, document: TranscriptDocument, target_language=None, background=None, **kwargs):
+    def build_prompt(self, background, document_format, target_language, text):
+        start, valid_text, end = self.extract_whitespace(text)
+        system_message = self.build_system_message(background)
+        user_message = self.build_user_message(document_format, target_language, valid_text)
+        prompt = [system_message] + self.few_shot_example + [user_message]
+        return prompt, start, end
+
+    def predict_cost(self, document: TranscriptDocument, target_language=None, background=None, **kwargs):
         """
         预测翻译成本
         :param document:  待翻译的文档对象
@@ -82,12 +88,43 @@ class DocumentTranslator:
         :param kwargs: 其他关键参数
         :return:
         """
-        # TODO: 调用分片处理函数，得到需要翻译的分片列表，再转换为分片实际翻译的文档 预处理对象
+        # 使用 filter 过滤出 translate 属性为真的元素
+        translate_piece = filter(lambda item: item.translate, document.get_pieces())
+        # 使用 map 计算每个元素的 cost 并将结果转为列表
+        predict_token_list = list(
+            map(lambda item: self.calc_llm_token(background, item, target_language), translate_piece))
+        # 汇总所有token
+        #  {"prompt_token": prompt_token, "result_token": result_token, "length": len(translate_text)}
+        # 初始化结果字典
+        result = self.sum_document_token(predict_token_list)
 
+        return result
+
+    def sum_document_token(self, predict_token_list):
+        result = {"prompt_token": 0, "result_token": 0, "length": 0}
+        # 在一个循环中更新结果字典
+        for item in predict_token_list:
+            result["prompt_token"] += item["prompt_token"]
+            result["result_token"] += item["result_token"]
+            result["length"] += item["length"]
+        return result
+
+    def calc_llm_token(self, background, item, target_language):
+        translate_text = self.build_translate_text(item.translate_content)
+        # 需要注意translate_content 是list 可能是多行短文本,需要进行拼接
+        prompt, _, _ = self.build_prompt(text=translate_text, background=background,
+                                         document_format=item.format,
+                                         target_language=target_language)
+        # 获取提示词所需token
+        prompt_token = self.llm.get_num_tokens_from_messages(prompt)
+        # 获取回答预计所需token(与输入相当)
+        result_token = self.llm.get_num_tokens(translate_text)
+        return {"prompt_token": prompt_token, "result_token": result_token, "length": len(translate_text)}
+
+    def build_translate_text(self, content_list: List[str]):
+        # list 拼接为字符串
         pass
-
-
-
+        return "\n" + self.separator + "\n".join(content_list)
 
     def build_user_message(self, document_format, target_language, text) -> HumanMessage:
         return HumanMessage(

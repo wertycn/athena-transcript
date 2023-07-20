@@ -134,10 +134,15 @@ class AthenaTranscript:
 
     def predict_cost(self):
         # TODO: 调用分片处理函数，得到需要翻译的分片列表，再转换为分片实际翻译的文档 预处理对象
+        token_num_list = []
         for path in self.translate_list:
             # 向分片工厂传入文件路径， 返回文档分片对象
-            DocumentSpliterFactory.create()
+            document = DocumentSpliterFactory.build_transcript_document(path)
             # 调用单分片计算方法
+            token_num_list.append(self.translator.predict_cost(document))
+
+        all_token = self.translator.sum_document_token(token_num_list)
+        print(all_token)
 
         pass
 
@@ -191,8 +196,8 @@ class AthenaTranscript:
 if __name__ == '__main__':
     transcript = AthenaTranscript(
         translator=DocumentTranslator(),
-        source_path=Path("../tests/sample"),
-        target_path=Path("../tests/sample_zh/"),
+        source_path=Path("D:/mycode/weaviate-docs-zh-main"),
+        target_path=Path("D:/mycode/weaviate-docs-zh-main-zh/"),
         excludes="*-cn.md,*_cn.md")
     print(transcript.translate_list)
     print(transcript.copy_list)

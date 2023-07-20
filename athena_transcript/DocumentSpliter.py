@@ -158,18 +158,32 @@ class DefaultSpliter(DocumentSpliter):
 class DocumentSpliterFactory:
 
     @staticmethod
-    def create(document_format: str, translator: DocumentTranslator, context: TranslateContext) -> DocumentSpliter:
+    def create(path: Path, max_length: int = 500) -> DocumentSpliter:
         """
         创建文档处理器实例对象
-        :param document_format:
-        :param translator:
-        :param context:
+        :param path:
+        :param max_length:
         :return:
         """
+        # 检查文件是否有后缀
+        if not path.suffix:
+            raise Exception("File does not have an extension")
+
+        # 去掉"."获取文件后缀
+        document_format = path.suffix[1:]
+
+        # 检查处理器是否支持该格式
         if document_format in DocumentSpliterMeta.processors:
-            return DocumentSpliterMeta.processors[document_format](translator, context)
+            return DocumentSpliterMeta.processors[document_format](path, max_length)
         else:
-            return DefaultSpliter()
+            raise Exception(f"Not supported splitter format [{document_format}]")
+
+    @staticmethod
+    def build_transcript_document(path: Path, max_length=1000) -> TranscriptDocument:
+        # 获取文件后缀
+        # 基于后缀获取
+        spliter = DocumentSpliterFactory.create(path, max_length)
+        return spliter.to_translate_document()
 
     @staticmethod
     def get_support_format():
@@ -191,7 +205,11 @@ class MarkdownSpliter(DocumentSpliter):
     def create_document_piece(cls, content, piece_type='text', translate=True, code_block_marker=None, **kwargs):
         if piece_type == 'code' and code_block_marker == ':::':
             # 提取代码块标题和内容
-            code_block_title, content_piece = re.findall(r':::(\w+)?\s*(.*?)(?=\n:::)', content, re.DOTALL)[0]
+            findall = re.findall(r':::(\w+)?\s*(.*?)(?=\n:::)', content, re.DOTALL)
+            if len(findall)<=0:
+                return DocumentPiece(content, piece_type, translate=translate)
+
+            code_block_title, content_piece = findall[0]
             content_piece = content_piece.strip()
 
             # 构建替换内容
@@ -231,13 +249,14 @@ class MarkdownSpliter(DocumentSpliter):
 
             # Toggle code block state
             if line.startswith('```') or line.startswith('~~~') or line.startswith(':::'):
+                code_block_marker = line[:3]
                 # If entering a code block, add previous piece as a text
                 if not in_code_block and current_piece:
                     pieces.append(self.create_document_piece(current_piece))
                     current_piece = line
-                    code_block_marker = line[:3]  # just take the first 3 characters
+                    # just take the first 3 characters
                 # If exiting a code block, add it as a piece
-                elif in_code_block and current_piece and line.strip().startswith(code_block_marker):
+                elif in_code_block and current_piece and line is not None and line.strip().startswith(code_block_marker):
                     current_piece += line
                     pieces.append(self.create_document_piece(current_piece, 'code', translate=False,
                                                              code_block_marker=code_block_marker))
