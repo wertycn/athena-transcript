@@ -65,7 +65,7 @@ class AthenaTranscriptWorkspace:
         self.workspace = self.find_or_create_workspace()
         log.info(f"workspace is [{self.workspace}]")
 
-    def find_or_create_workspace(self):
+    def find_or_create_workspace(self) -> str:
         current_dir = self.initial_dir
 
         # Check if workspace exists in the initial directory or its parents
@@ -89,18 +89,27 @@ class AthenaTranscriptWorkspace:
     def get_workspace(self):
         return self.workspace
 
-    def is_exist_transcript_record(self, hash: str) -> bool:
-        return False
+    def get_record_path(self, hash: str, lange: str):
+        return os.path.join(self.get_workspace(), "record", lange, hash)
 
-    def get_transcript_record(self, piece_hash: str) -> str:
-        # 获取分片翻译记录
+    def is_exist_transcript_record(self, piece_hash: str, lange: str) -> bool:
+        # Check if the file at the path obtained by get_record_path exists
+        path = self.get_record_path(piece_hash, lange)
+        return os.path.exists(path)
 
-        # 使用分片hash存储到工作区内， 从工作区中进行获取，分片基于前进行存储分片
-        pass
+    def get_transcript_record(self, piece_hash: str, lange: str) -> str:
+        # Return the entire contents of the file at the path obtained by get_record_path
+        path = self.get_record_path(piece_hash, lange)
+        if os.path.exists(path):
+            with open(path, 'r', encoding="utf-8") as f:
+                return f.read()
+        else:
+            raise FileNotFoundError("The file does not exist.")
 
-    def save_transcript_record(self, piece: DocumentPiece):
-        pass
-
+    def save_transcript_record(self, piece: DocumentPiece, lange: str):
+        path = self.get_record_path(piece.hash, lange)
+        with open(path, 'w', encoding="utf-8") as f:
+            f.write(piece.translate_content)
 
 class AthenaTranscript:
     default_excludes: List[str] = ["node_modules/", ".git/", ".idea/", AthenaTranscriptWorkspace.workspace_dir]

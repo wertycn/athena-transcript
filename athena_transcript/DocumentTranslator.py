@@ -90,6 +90,7 @@ class DocumentTranslator:
         """
         # 使用 filter 过滤出 translate 属性为真的元素
         translate_piece = filter(lambda item: item.translate, document.get_pieces())
+
         # 使用 map 计算每个元素的 cost 并将结果转为列表
         predict_token_list = list(
             map(lambda item: self.calc_llm_token(background, item, target_language), translate_piece))
