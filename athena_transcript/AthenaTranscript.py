@@ -98,7 +98,6 @@ class AthenaTranscriptWorkspace:
         return os.path.exists(path)
 
     def get_transcript_record(self, piece_hash: str, lange: str) -> str:
-        # Return the entire contents of the file at the path obtained by get_record_path
         path = self.get_record_path(piece_hash, lange)
         if os.path.exists(path):
             with open(path, 'r', encoding="utf-8") as f:
