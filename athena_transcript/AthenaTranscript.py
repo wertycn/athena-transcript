@@ -150,9 +150,7 @@ class AthenaTranscript:
             token_num_list.append(self.translator.predict_cost(document))
 
         all_token = self.translator.sum_document_token(token_num_list)
-        print(all_token)
-
-        pass
+        return all_token
 
     def predict_single_document_cost(self, document: TranscriptDocument):
         """
@@ -210,4 +208,4 @@ if __name__ == '__main__':
     print(transcript.translate_list)
     print(transcript.copy_list)
 
-    transcript.predict_cost()
+    print(transcript.predict_cost())
