@@ -206,6 +206,5 @@ if __name__ == '__main__':
         target_path=Path("D:/mycode/weaviate-docs-zh-main-zh/"),
         excludes="*-cn.md,*_cn.md")
     print(transcript.translate_list)
-    print(transcript.copy_list)
 
     print(transcript.predict_cost())
