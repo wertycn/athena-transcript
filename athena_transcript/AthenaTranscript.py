@@ -128,6 +128,8 @@ class AthenaTranscript:
         exclude_list = excludes.split(",")
         exclude_list.append(target_path)
         exclude_list.extend([Path(value) for value in self.default_excludes])
+        log.info(f'exclude file rule list : {exclude_list}')
+
         self.document_file_list = NormalFileCollector(source_path, exclude_list).get_file_list()
         # 获取需要翻译的文件列表
         self.translate_list, self.copy_list = self.filter_translate_file_list()
@@ -150,11 +152,13 @@ class AthenaTranscript:
             token_num_list.append(self.translator.predict_cost(document))
 
         all_token = self.translator.sum_document_token(token_num_list)
+        log.info(f"translate cost predict res : {all_token}")
         return all_token
 
     def predict_single_document_cost(self, document: TranscriptDocument):
         """
         预测单个文档的成本
+        获取到分片，判断分片翻译结果是否存在
         :return:
         """
         pieces = document.get_pieces()
@@ -206,5 +210,4 @@ if __name__ == '__main__':
         target_path=Path("D:/mycode/weaviate-docs-zh-main-zh/"),
         excludes="*-cn.md,*_cn.md")
     # print(transcript.translate_list)
-    print(transcript.default_excludes)
     print(transcript.predict_cost())
