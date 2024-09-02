@@ -9,10 +9,12 @@ from pathlib import Path
 from typing import List
 
 import frontmatter
+# from frontmatter import Frontmatter
+
 import nbformat
 from tqdm import tqdm
 
-from DocumentTranslator import DocumentTranslator
+from athena_transcript.DocumentTranslator import DocumentTranslator
 from athena_transcript.scheam import TranslateContext, DocumentPiece, TranscriptDocument
 
 
@@ -33,9 +35,10 @@ class DocumentSpliterMeta(ABCMeta):
 
 class DocumentSpliter(ABC, metaclass=DocumentSpliterMeta):
 
-    def __init__(self, file_path: Path = None, max_length: int = 500):
+    def __init__(self,context, file_path: Path = None, max_length: int = 500):
         self.file_path = file_path
         self.max_length = max_length
+        self.context = context
 
     @abstractmethod
     def read_document(self, filepath):
@@ -176,7 +179,8 @@ class DocumentSpliterFactory:
         if document_format in DocumentSpliterMeta.processors:
             return DocumentSpliterMeta.processors[document_format](path, max_length)
         else:
-            raise Exception(f"Not supported splitter format [{document_format}]")
+            return DefaultSpliter()
+            # raise Exception(f"Not supported splitter format [{document_format}]")
 
     @staticmethod
     def build_transcript_document(path: Path, max_length=1000) -> TranscriptDocument:
@@ -195,7 +199,8 @@ class MarkdownSpliter(DocumentSpliter):
     markdown 文档处理器
     """
     # TODO: frontmatter 作为一个分片添加到分片结果中去
-    front_matter: frontmatter.Post
+    front_matter: any
+    
 
     @classmethod
     def get_support_format(cls) -> List[str]:

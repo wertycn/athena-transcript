@@ -168,12 +168,17 @@ class AthenaTranscript:
 
     def translate(self):
         translate_list, copy_list = self.filter_translate_file_list()
+        print(translate_list)
+        
         # 文件转换为TranscriptDocument 对象并存储
-
+        for file in translate_list:
+            spilter = DocumentSpliterFactory.create(file, max_length=1000)
+            # spilter.to_translate_document()
+            spilter.process_document()
         # 计算本次翻译所需成本(如果有分片有翻译记录且无变化，不计算成本)
 
         # 不支持翻译的文件直接copy到目标目录
-
+        
         # 执行翻译
 
         pass

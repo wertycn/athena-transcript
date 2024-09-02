@@ -4,7 +4,7 @@ import re
 from typing import List
 
 import yaml
-from langchain.chat_models import ChatOpenAI
+from langchain_openai import ChatOpenAI
 from langchain.chat_models.base import BaseChatModel
 from langchain.schema import SystemMessage, HumanMessage, AIMessage, BaseMessage
 
@@ -22,11 +22,14 @@ class DocumentTranslator:
         self.default_language = "Chinese"
         self.default_format = "Markdown"
         self.few_shot_example = self.build_chat_sequence()
+        
+    def invoke_llm(self,prompt):
+        return self.llm.invoke(prompt)
 
     @staticmethod
     def build_model(llm):
         if llm is None:
-            model = os.getenv("OPENAI_API_MODEL", "gpt-3.5-turbo")
+            model = os.getenv("OPENAI_API_MODEL", "glm-4")
             llm = ChatOpenAI(model=model)
 
         return llm
@@ -64,7 +67,7 @@ class DocumentTranslator:
 
         # 有效文本前后的空白字符提供，尽可能保留输入内容的格式
         prompt, start, end = self.build_prompt(background, document_format, target_language, text)
-        result = self.llm(prompt)
+        result = self.invoke_llm(prompt)
 
         if result.content.strip() == "NOT_FOUNT_CONTENT":
             print("input text not found valid content !")
@@ -169,8 +172,7 @@ if __name__ == '__main__':
     parser.add_argument('--config', default='./prompt.yaml', type=str,
                         help='Path to the configuration file.')
     args = parser.parse_args()
-
-    chat = ChatOpenAI(model="gpt-3.5-turbo-16k")
+    chat = ChatOpenAI(model="glm4")
     translator = DocumentTranslator(chat, args.config)
     res = translator.translate("用户输入的待翻译文本", target_language="English")
     print(res)
